@@ -1,5 +1,7 @@
 # anthropic-api-scala-sdk
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.aoprisan/anthropic-api-scala-sdk_3?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.aoprisan/anthropic-api-scala-sdk_3)
+
 A small typed Scala client for Anthropic's Messages API (`POST /v1/messages`) and the endpoints around it, over raw HTTPS, following the documented wire format. Cross-built for **Scala 3** and **Scala 2.13**, Java 17+. The core has **no dependencies**: it uses the JDK `HttpClient` and its own small JSON AST.
 
 The Scala counterpart of [rust-claude-sdk](https://github.com/aoprisan/rust-claude-sdk), with the same features:
