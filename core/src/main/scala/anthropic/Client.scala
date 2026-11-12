@@ -81,8 +81,8 @@ object CallOptions {
 
 /** A client for Anthropic's Messages API (`POST /v1/messages`) and the endpoints around it. Calls block
   * the calling thread (cheap on virtual threads) and throw [[AnthropicException]]; the
-  * `anthropic-api-scala-sdk-cats-effect` module wraps them for Cats Effect and fs2. Thread-safe: share
-  * one instance. An `AutoCloseable`, so `scala.util.Using(AnthropicClient(...))` releases it.
+  * `anthropic-api-scala-sdk-cats-effect`, `-zio`, `-monix`, `-kyo` and `-ox` modules wrap them for Cats
+  * Effect and fs2, ZIO, Monix, Kyo and Ox. Thread-safe: share one instance. An `AutoCloseable`, so `scala.util.Using(AnthropicClient(...))` releases it.
   *
   * {{{
   * val client  = AnthropicClient(ClientConfig.fromEnv().getOrElse(sys.error("ANTHROPIC_API_KEY")))

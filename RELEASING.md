@@ -1,13 +1,17 @@
 # Releasing
 
 Artifacts are published to Maven Central as
-`io.github.aoprisan %% anthropic-api-scala-sdk` (and `%% anthropic-api-scala-sdk-cats-effect`) by
+`io.github.aoprisan %% anthropic-api-scala-sdk` (and its `-cats-effect`, `-zio`, `-monix`, `-kyo` and `-ox` modules) by
 [sbt-ci-release](https://github.com/sbt/sbt-ci-release), driven by
 `.github/workflows/release.yml`.
 
 Every module is cross-built for Scala 3 and Scala 2.13 (`crossScalaVersions` in
 `build.sbt`), and sbt-ci-release publishes with `+publishSigned`, so each release
 puts a `_3` and a `_2.13` artifact of every module on Central.
+
+The Ox and Kyo modules are the exception: they are built for Scala 3.9 only (a `_3` artifact), and
+are part of the build only on a JDK that can compile them (21 for Ox, 25 for Kyo). The release
+workflow therefore runs on JDK 25; on an older JDK a release would silently leave them out.
 
 The version comes from git tags via sbt-dynver, so there is no version to bump
 in `build.sbt` or in the code (sbt-buildinfo hands it to the core, where the
