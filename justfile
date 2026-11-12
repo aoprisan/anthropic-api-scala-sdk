@@ -19,7 +19,9 @@ examples:
         "examples/runMain examples.CodeExecution" \
         "examples/runMain examples.Batch" \
         "examples/runMain examples.Models" \
-        "examples/runMain examples.StreamingIO"
+        "examples/runMain examples.StreamingIO" \
+        "examples/runMain examples.StreamingZIO" \
+        "examplesMonix/runMain examples.StreamingMonix"
 
 # interactive chat in the terminal (needs ANTHROPIC_API_KEY)
 chat:

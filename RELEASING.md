@@ -1,7 +1,7 @@
 # Releasing
 
 Artifacts are published to Maven Central as
-`io.github.aoprisan %% anthropic-api-scala-sdk` (and `%% anthropic-api-scala-sdk-cats-effect`) by
+`io.github.aoprisan %% anthropic-api-scala-sdk` (and its `-cats-effect`, `-zio` and `-monix` modules) by
 [sbt-ci-release](https://github.com/sbt/sbt-ci-release), driven by
 `.github/workflows/release.yml`.
 

@@ -13,7 +13,7 @@ The Scala counterpart of [rust-claude-sdk](https://github.com/aoprisan/rust-clau
 - Server tools: web search, web fetch, code execution and tool search, with typed definitions, typed result blocks (errors included), web search citations and `usage.server_tool_use`.
 - A tool-use loop, `AnthropicClient.runTools`: runs the tools the model calls (a turn's calls concurrently), sends all results back in one turn and resumes `pause_turn`, bounded by `maxRequests`.
 - `POST /v1/messages/count_tokens`, Message Batches (results read line by line), the Files API and the Models API.
-- A Cats Effect / fs2 module: every call as an `F`, cancelable; events, batch results and paginated lists as `fs2.Stream`s; an effectful tool loop.
+- Effect-system modules for Cats Effect / fs2, ZIO and Monix: every call as an effect, cancelable; events, batch results and paginated lists as streams; an effectful tool loop.
 
 ## Installation
 
@@ -22,6 +22,12 @@ libraryDependencies += "io.github.aoprisan" %% "anthropic-api-scala-sdk" % "<ver
 
 // optional: Cats Effect 3 and fs2
 libraryDependencies += "io.github.aoprisan" %% "anthropic-api-scala-sdk-cats-effect" % "<version>"
+
+// optional: ZIO 2 and ZIO Streams
+libraryDependencies += "io.github.aoprisan" %% "anthropic-api-scala-sdk-zio" % "<version>"
+
+// optional: Monix 3 (Task and Observable)
+libraryDependencies += "io.github.aoprisan" %% "anthropic-api-scala-sdk-monix" % "<version>"
 ```
 
 ## Usage
@@ -129,6 +135,44 @@ AnthropicClientF.fromEnv[IO].use { client =>
 
 Cancelling a call aborts its HTTP exchange. Streams release their connection when they end, fail or are cancelled. `allModels`, `allFiles` and `allBatches` walk every page lazily. `runTools` takes a `ToolCall => F[ToolOutput]` handler and runs a turn's calls in parallel. `awaitBatch` sleeps on the runtime between polls.
 
+### ZIO
+
+```scala
+import anthropic._
+import anthropic.zio2.AnthropicClientZIO
+import zio._
+
+val program = ZIO.serviceWithZIO[AnthropicClientZIO] { client =>
+  client
+    .stream(MessagesRequest("claude-opus-5-5", 1024).user("Salut!"))
+    .via(AnthropicClientZIO.textDeltas)      // or AnthropicClientZIO.accumulate for the message
+    .runForeach(Console.print(_))
+}
+program.provide(AnthropicClientZIO.live)     // or AnthropicClientZIO.layer(config)
+```
+
+Every call is an `IO[AnthropicException, A]`: the SDK's errors are in the typed channel, anything else is a defect. Calls run on the blocking pool, and interrupting one aborts its HTTP exchange. Bodies are `ZStream`s; `runTools` takes a `ToolCall => ZIO[R, Throwable, ToolOutput]` handler. `AnthropicClientZIO.scoped(config)` gives a client tied to a `Scope`.
+
+### Monix
+
+```scala
+import anthropic._
+import anthropic.monixtask.AnthropicClientTask
+import monix.eval.Task
+
+AnthropicClientTask.fromEnv.use { client =>
+  client
+    .stream(MessagesRequest("claude-opus-5-5", 1024).user("Salut!"))
+    .transform(AnthropicClientTask.textDeltas) // or AnthropicClientTask.accumulate for the message
+    .mapEval(t => Task(print(t)))
+    .completedL
+}
+```
+
+Every call is a `Task`, and bodies are `Observable`s. Calls block threads of a dedicated daemon pool, never the `Scheduler`, and cancelling one aborts its HTTP exchange. `runTools` takes a `ToolCall => Task[ToolOutput]` handler. Monix 3 is built on Cats Effect 2, so this module cannot share a classpath with the Cats Effect 3 one.
+
+The three modules offer the same calls. The packages are `anthropic.zio2` and `anthropic.monixtask` so that `import anthropic._` does not hide the `zio` and `monix` packages.
+
 ### JSON
 
 Tool inputs, schemas and other free-form fields are `anthropic.Json` values. Build them with `Json.obj(...)` / `Json.arr(...)` or parse them with `Json.parse`. Read them with `get`, `apply`, `at`, `asString`, `asLong` and the other accessors. To use another JSON library, convert through text: `Json.parse(circeJson.noSpaces)` in, and `myJson.render` out.
@@ -158,6 +202,8 @@ Runnable programs in [`examples/`](examples/src/main/scala/examples), each start
 | [`Batch`](examples/src/main/scala/examples/Batch.scala) | Creating a Message Batch, polling it and reading its results |
 | [`Models`](examples/src/main/scala/examples/Models.scala) | Paging through the Models API with capabilities, and counting tokens |
 | [`StreamingIO`](examples/src/main/scala/examples/StreamingIO.scala) | The Cats Effect binding: an fs2 text stream, parallel calls, every model across pages |
+| [`StreamingZIO`](examples/src/main/scala/examples/StreamingZIO.scala) | The ZIO binding: the same with a `ZLayer`, a `ZStream` and typed errors |
+| [`StreamingMonix`](examples-monix/src/main/scala/examples/StreamingMonix.scala) | The Monix binding: the same with `Task` and `Observable` (run it with `sbt "examplesMonix/runMain examples.StreamingMonix"`) |
 
 ## Development
 

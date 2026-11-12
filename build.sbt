@@ -29,6 +29,8 @@ val munitVersion           = "1.1.1"
 val catsEffectVersion      = "3.7.1"
 val fs2Version             = "3.14.0"
 val munitCatsEffectVersion = "2.2.1"
+val monixVersion           = "3.5.2"
+val zioVersion             = "2.1.27"
 
 /** One source tree for both Scala versions: Scala 2.13 reads it with `-Xsource:3`. */
 def commonSettings = Seq(
@@ -47,7 +49,7 @@ def commonSettings = Seq(
 
 lazy val root = project
   .in(file("."))
-  .aggregate(core, catsEffect, examples)
+  .aggregate(core, catsEffect, monix, zio, examples, examplesMonix)
   .settings(
     name           := "anthropic-api-scala-sdk-root",
     publish / skip := true
@@ -83,17 +85,54 @@ lazy val catsEffect = project
     )
   )
 
+// Monix 3 runs on Cats Effect 2, so this module (and anything using it) cannot share a classpath with
+// the Cats Effect 3 one.
+lazy val monix = project
+  .in(file("monix"))
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(commonSettings)
+  .settings(
+    name        := "anthropic-api-scala-sdk-monix",
+    description := "Monix binding (Task and Observable) for the Anthropic Messages API client",
+    libraryDependencies += "io.monix" %% "monix" % monixVersion
+  )
+
+lazy val zio = project
+  .in(file("zio"))
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(commonSettings)
+  .settings(
+    name        := "anthropic-api-scala-sdk-zio",
+    description := "ZIO 2 binding (ZIO, ZStream and ZLayer) for the Anthropic Messages API client",
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio"         % zioVersion,
+      "dev.zio" %% "zio-streams" % zioVersion
+    )
+  )
+
 // ---- examples ---------------------------------------------------------------------------------
 // Runnable samples, one `main` each. Not published, but aggregated: `sbt +test` compiles them, so a
 // change to the API they document cannot be merged while they still describe the old one.
 lazy val examples = project
   .in(file("examples"))
-  .dependsOn(core, catsEffect)
+  .dependsOn(core, catsEffect, zio)
   .settings(commonSettings)
   .settings(
     name           := "anthropic-api-scala-sdk-examples",
     publish / skip := true,
     run / fork     := true,
     run / connectInput := true,
+    run / javaOptions ++= Seq("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+  )
+
+// The Monix sample lives apart: Monix brings Cats Effect 2, the other examples Cats Effect 3.
+lazy val examplesMonix = project
+  .in(file("examples-monix"))
+  .dependsOn(core, monix)
+  .settings(commonSettings)
+  .settings(
+    name           := "anthropic-api-scala-sdk-examples-monix",
+    publish / skip := true,
+    run / fork     := true,
     run / javaOptions ++= Seq("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
   )
