@@ -13,7 +13,7 @@ The Scala counterpart of [rust-claude-sdk](https://github.com/aoprisan/rust-clau
 - Server tools: web search, web fetch, code execution and tool search, with typed definitions, typed result blocks (errors included), web search citations and `usage.server_tool_use`.
 - A tool-use loop, `AnthropicClient.runTools`: runs the tools the model calls (a turn's calls concurrently), sends all results back in one turn and resumes `pause_turn`, bounded by `maxRequests`.
 - `POST /v1/messages/count_tokens`, Message Batches (results read line by line), the Files API and the Models API.
-- Effect-system modules for Cats Effect / fs2, ZIO and Monix: every call as an effect, cancelable; events, batch results and paginated lists as streams; an effectful tool loop.
+- Effect-system modules for Cats Effect / fs2, ZIO, Monix, Kyo and Ox: every call as an effect, cancelable; events, batch results and paginated lists as streams; an effectful tool loop.
 
 ## Installation
 
@@ -28,6 +28,12 @@ libraryDependencies += "io.github.aoprisan" %% "anthropic-api-scala-sdk-zio" % "
 
 // optional: Monix 3 (Task and Observable)
 libraryDependencies += "io.github.aoprisan" %% "anthropic-api-scala-sdk-monix" % "<version>"
+
+// optional: Ox flows and structured concurrency (Scala 3.9+, JDK 21+)
+libraryDependencies += "io.github.aoprisan" %% "anthropic-api-scala-sdk-ox" % "<version>"
+
+// optional: Kyo (Scala 3.9+, JDK 25+)
+libraryDependencies += "io.github.aoprisan" %% "anthropic-api-scala-sdk-kyo" % "<version>"
 ```
 
 ## Usage
@@ -171,7 +177,47 @@ AnthropicClientTask.fromEnv.use { client =>
 
 Every call is a `Task`, and bodies are `Observable`s. Calls block threads of a dedicated daemon pool, never the `Scheduler`, and cancelling one aborts its HTTP exchange. `runTools` takes a `ToolCall => Task[ToolOutput]` handler. Monix 3 is built on Cats Effect 2, so this module cannot share a classpath with the Cats Effect 3 one.
 
-The three modules offer the same calls. The packages are `anthropic.zio2` and `anthropic.monixtask` so that `import anthropic._` does not hide the `zio` and `monix` packages.
+### Kyo
+
+```scala
+import anthropic.*
+import anthropic.kyoeffect.AnthropicClientKyo
+import anthropic.kyoeffect.AnthropicClientKyo.textDeltas // and `accumulate` for the message
+import kyo.*
+
+object Hello extends KyoApp:
+  run {
+    AnthropicClientKyo.fromEnv.map { client =>
+      client
+        .stream(MessagesRequest("claude-opus-5-5", 1024).user("Salut!"))
+        .textDeltas
+        .foreach(Console.print(_))
+    }
+  }
+```
+
+Every call is pending `Async & Abort[AnthropicException]`: the SDK's errors are typed failures, anything else is a panic. Calls block a virtual thread each, never Kyo's scheduler, and interrupting one aborts its HTTP exchange. Bodies are `Stream`s that also need a `Scope`, which releases the connection when it closes, including when the stream is left early. `runTools` takes a `ToolCall => ToolOutput < (Async & Abort[Throwable])` handler. `AnthropicClientKyo.init(config)` and `fromEnv` give a client tied to a `Scope`; `layer(config)` and `live` give it as a `Layer`.
+
+Kyo is published for Scala 3.9 and JDK 25 only, and so is this module. It is built against a release candidate of Kyo 1.0, whose API may still change.
+
+### Ox
+
+```scala
+import anthropic.*
+import anthropic.oxflow.*
+import ox.*
+
+supervised:
+  val client = useCloseableInScope(AnthropicClient.fromEnv())
+  client
+    .streamFlow(MessagesRequest("claude-opus-5-5", 1024).user("Salut!"))
+    .textDeltas                              // or .accumulate for the message
+    .runForeach(print)
+```
+
+Ox is direct style, and so is `AnthropicClient`: its calls end when their thread is interrupted, so they work as they are inside `par`, `race`, `timeout` and forks. The module adds extension methods to the client: `streamFlow` and `batchResultsFlow` give bodies as `Flow`s that release their connection however the flow ends, `allModels`, `allFiles` and `allBatches` walk every page lazily, and `runToolsScoped` is the tool loop with a turn's handlers run in forks of one scope, so interrupting the loop interrupts them. Ox is published for Scala 3.9 and JDK 21 only, and so is this module.
+
+The modules offer the same calls. Their packages are `anthropic.zio2`, `anthropic.monixtask`, `anthropic.kyoeffect` and `anthropic.oxflow` so that `import anthropic._` does not hide the `zio`, `monix`, `kyo` and `ox` packages.
 
 ### JSON
 
@@ -204,17 +250,19 @@ Runnable programs in [`examples/`](examples/src/main/scala/examples), each start
 | [`StreamingIO`](examples/src/main/scala/examples/StreamingIO.scala) | The Cats Effect binding: an fs2 text stream, parallel calls, every model across pages |
 | [`StreamingZIO`](examples/src/main/scala/examples/StreamingZIO.scala) | The ZIO binding: the same with a `ZLayer`, a `ZStream` and typed errors |
 | [`StreamingMonix`](examples-monix/src/main/scala/examples/StreamingMonix.scala) | The Monix binding: the same with `Task` and `Observable` (run it with `sbt "examplesMonix/runMain examples.StreamingMonix"`) |
+| [`StreamingKyo`](examples-kyo/src/main/scala/examples/StreamingKyo.scala) | The Kyo binding: the same with `Async`, `Abort` and a `Stream` (`sbt "examplesKyo/runMain examples.StreamingKyo"`, JDK 25) |
+| [`StreamingOx`](examples-ox/src/main/scala/examples/StreamingOx.scala) | The Ox binding: the same with `par` and a `Flow` (`sbt "examplesOx/runMain examples.StreamingOx"`, JDK 21) |
 
 ## Development
 
-sbt 1.11 and a JDK 17 or later.
+sbt 1.11 and a JDK 17 or later. The Ox module is part of the build on JDK 21 and later, the Kyo module on JDK 25 and later; use JDK 25 to build and test everything.
 
 ```sh
 sbt +test           # every module on Scala 3 and Scala 2.13
 sbt +publishLocal   # the jars, sources, Scaladoc and POMs of a release
 ```
 
-Tests run against a local stand-in for the API and need no API key. One source tree serves both Scala versions: Scala 2.13 compiles it with `-Xsource:3`, and warnings are errors on both.
+Tests run against a local stand-in for the API and need no API key. One source tree serves both Scala versions: Scala 2.13 compiles it with `-Xsource:3`, and warnings are errors on both. The Ox and Kyo modules are Scala 3.9 only.
 
 ## Releasing
 

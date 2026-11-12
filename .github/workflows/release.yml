@@ -15,8 +15,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          # Every module compiles with `-release 17`, so the jars run on 17 whatever builds them.
-          java-version: "17"
+          # JDK 25 is the one that can build every module: Kyo needs it, Ox needs 21. The others
+          # compile with `-release 17`, so their jars run on 17 whatever builds them.
+          java-version: "25"
           cache: sbt
       - uses: sbt/setup-sbt@v1
       # sbt-ci-release publishes with `+publishSigned`: one artifact per Scala version in

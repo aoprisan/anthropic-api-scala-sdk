@@ -1,6 +1,6 @@
 default: test
 
-# every module on Scala 3 and Scala 2.13
+# every module on each Scala version it supports (all of them only on JDK 25)
 test:
     sbt +test
 
@@ -11,7 +11,7 @@ compile:
 publish-local:
     sbt +publishLocal
 
-# run every sample in examples/ (needs ANTHROPIC_API_KEY)
+# run every sample in examples/ (needs ANTHROPIC_API_KEY and JDK 25)
 examples:
     sbt "examples/runMain examples.Grounded" \
         "examples/runMain examples.Tools" \
@@ -21,7 +21,9 @@ examples:
         "examples/runMain examples.Models" \
         "examples/runMain examples.StreamingIO" \
         "examples/runMain examples.StreamingZIO" \
-        "examplesMonix/runMain examples.StreamingMonix"
+        "examplesMonix/runMain examples.StreamingMonix" \
+        "examplesOx/runMain examples.StreamingOx" \
+        "examplesKyo/runMain examples.StreamingKyo"
 
 # interactive chat in the terminal (needs ANTHROPIC_API_KEY)
 chat:
