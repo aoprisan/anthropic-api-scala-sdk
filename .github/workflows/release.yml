@@ -1,0 +1,29 @@
+name: release
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # sbt-dynver needs the full history and tags
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Every module compiles with `-release 17`, so the jars run on 17 whatever builds them.
+          java-version: "17"
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      # sbt-ci-release publishes with `+publishSigned`: one artifact per Scala version in
+      # crossScalaVersions (`_3` and `_2.13`). A `vX.Y.Z` tag is a release, `main` a snapshot.
+      - run: sbt ci-release
+        env:
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          PGP_SECRET: ${{ secrets.PGP_SECRET }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
