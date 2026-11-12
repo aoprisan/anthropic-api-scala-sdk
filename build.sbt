@@ -4,6 +4,9 @@ val scala3   = "3.3.6"
 ThisBuild / scalaVersion       := scala3
 ThisBuild / crossScalaVersions := Seq(scala3, scala213)
 ThisBuild / organization       := "io.github.aoprisan"
+// Early semver: before 1.0 a minor bump (0.1 -> 0.2) may break binary compatibility, a patch may not.
+// Written into the POMs, so sbt and other tools can tell which upgrades are safe.
+ThisBuild / versionScheme := Some("early-semver")
 // version is derived from git tags by sbt-dynver (see project/plugins.sbt):
 // a `vX.Y.Z` tag releases X.Y.Z, anything else publishes a snapshot.
 
